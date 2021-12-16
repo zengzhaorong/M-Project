@@ -81,7 +81,27 @@ int proto_0x03_sendHeartBeat(int handle)
 	return 0;
 }
 
-int proto_0x21_sendCaptureFrame(int handle, int format, void *frame, int len)
+int proto_0x04_switch_monitor(int handle, uint8_t onoff)
+{
+	uint8_t *protoBuf = NULL;
+	int buf_size = 0;
+	int packLen = 0;
+
+	if(handle < 0 || handle >=MAX_PROTO_OBJ)
+		return -1;
+	if(protoObject[handle].send_func == NULL)
+		return -1;
+
+	protoBuf = protoObject[handle].send_buf;
+	buf_size = protoObject[handle].buf_size;
+	proto_makeupPacket(0, 0x04, 1, (uint8_t *)&onoff, protoBuf, buf_size, &packLen);
+
+	protoObject[handle].send_func(protoObject[handle].arg, protoBuf, packLen);
+	
+	return 0;
+}
+
+int proto_0x10_sendCaptureFrame(int handle, int format, void *frame, int len)
 {
 	uint8_t *protoBuf = NULL;
 	int data_len = 0;
@@ -107,7 +127,7 @@ int proto_0x21_sendCaptureFrame(int handle, int format, void *frame, int len)
 
 	protoBuf = protoObject[handle].send_buf;
 	buf_size = protoObject[handle].buf_size;
-	proto_makeupPacket(0, 0x21, data_len, tmp_protoBuf, protoBuf, buf_size, &packLen);
+	proto_makeupPacket(0, 0x10, data_len, tmp_protoBuf, protoBuf, buf_size, &packLen);
 
 	protoObject[handle].send_func(protoObject[handle].arg, protoBuf, packLen);
 	

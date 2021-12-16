@@ -9,6 +9,10 @@
 #define CONFIG_WINDOW_HEIGHT(ini)       iniparser_getint(ini, "WINDOW:windowHeight", DEFAULT_WINDOW_HEIGHT)
 #define CONFIG_WINDOW_FONT_SIZE(ini)   iniparser_getint(ini, "WINDOW:windowFontSize", DEFAULT_WINDOW_FONT_SIZE)
 
+// [VIDEO_AREA]
+#define CONFIG_VIDEO_AREA_WIDTH(ini)    iniparser_getint(ini, "VIDEO_AREA:videoAreaWidth", DEFAULT_VIDEO_AREA_WIDTH)
+#define CONFIG_VIDEO_AREA_HEIGH(ini)    iniparser_getint(ini, "VIDEO_AREA:videoAreaHeight", DEFAULT_VIDEO_AREA_HEIGH)
+
 // [CAPTURE]
 #define CONFIG_CAPTURE_DEV(ini)     iniparser_getstring(ini, "CAPTURE:captureDev", DEFAULT_CAPTURE_DEV)
 #define CONFIG_CAPTURE_WIDTH(ini)    iniparser_getint(ini, "CAPTURE:capuretWidth", DEFAULT_CAPTURE_WIDTH)
@@ -27,6 +31,9 @@
 #define DEFAULT_WINDOW_HEIGHT		480
 #define DEFAULT_WINDOW_FONT_SIZE	24
 
+// [VIDEO_AREA]
+#define DEFAULT_VIDEO_AREA_WIDTH		640
+#define DEFAULT_VIDEO_AREA_HEIGH		480
 
 // [CAPTURE]
 #define DEFAULT_CAPTURE_DEV 		"/dev/video0"

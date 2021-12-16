@@ -1,13 +1,12 @@
 #include <iostream>
 #include <QApplication>
 #include "mainwindow.h"
-#include "socket_server.h"
+#include "socket_client.h"
 
 /* C++ include C */
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "capture.h"
 #ifdef __cplusplus
 }
 #endif
@@ -35,14 +34,6 @@ int main(int argc, char* argv[])
 	main_mngr.socket_handle = -1;
 	
 	start_mainwindow_task();
-
-	newframe_mem_init();
-
-	sleep(1);	// only to show background image
-	start_capture_task();
-
-	start_socket_server_task();
-
 
 	return qtApp.exec();		// start qt application, message loop ...
 }

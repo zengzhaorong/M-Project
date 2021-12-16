@@ -43,7 +43,7 @@ struct clientInfo
 	int identity;		// client_identity_e
 };
 
-int start_socket_client_task(void);
+int start_socket_client_task(char *svr_str);
 
 
 #endif	// _SOCKET_CLIENT_H_

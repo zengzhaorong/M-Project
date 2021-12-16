@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include "socket_client.h"
 #include "mainwindow.h"
+#include "config.h"
 
 
 /* C++ include C */
@@ -15,7 +16,6 @@
 extern "C" {
 #endif
 #include "ringbuffer.h"
-#include "capture.h"
 #ifdef __cplusplus
 }
 #endif
@@ -43,10 +43,56 @@ int client_0x01_login(struct clientInfo *client, uint8_t *data, int len, uint8_t
 	return 0;
 }
 
+int client_0x03_heartbeat(struct clientInfo *client, uint8_t *data, int len, uint8_t *ack_data, int size, int *ack_len)
+{
+	uint32_t svrTime;
+	int tmplen = 0;
+	int ret;
+
+	if(data==NULL || len<=0)
+		return -1;
+
+	memcpy(&ret, data +tmplen, 4);
+	tmplen += 4;
+
+	/* beijing time */
+	memcpy(&svrTime, data +tmplen, 4);
+	tmplen += 4;
+
+
+	return 0;
+}
+
+int client_0x10_sendCaptureFrame(struct clientInfo *client, uint8_t *data, int len, uint8_t *ack_data, int size, int *ack_len)
+{
+	int format = 0;
+	int frame_len = 0;
+	int offset = 0;
+	
+	/* format */
+	memcpy(&format, data +offset, 4);
+	offset += 4;
+
+	/* frame len */
+	memcpy(&frame_len, data +offset, 4);
+	offset += 4;
+
+	/* update frame data */
+	newframe_update(data +offset, frame_len);
+
+	return 0;
+}
+
+
 int client_init(struct clientInfo *client, char *srv_ip, int srv_port)
 {
 	int flags = 0;
 	int ret;
+
+	printf("%s: [server] ip: %s, port: %d\n", __FUNCTION__, srv_ip, srv_port);
+
+	if(srv_ip==NULL || srv_port<=0)
+		return -1;
 
 	memset(client, 0, sizeof(struct clientInfo));
 
@@ -55,7 +101,7 @@ int client_init(struct clientInfo *client, char *srv_ip, int srv_port)
 	client->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if(client->fd < 0)
 	{
-		ret = -1;
+		ret = -2;
 		goto ERR_1;
 	}
 
@@ -65,13 +111,18 @@ int client_init(struct clientInfo *client, char *srv_ip, int srv_port)
 	fcntl(client->fd, F_SETFL, flags | O_NONBLOCK);
 
 	client->srv_addr.sin_family = AF_INET;
-	inet_pton(AF_INET, srv_ip, &client->srv_addr.sin_addr);
+	ret = inet_pton(AF_INET, srv_ip, &client->srv_addr.sin_addr);
+	if(ret != 1)
+	{
+		ret = -3;
+		goto ERR_2;
+	}
 	client->srv_addr.sin_port = htons(srv_port);
 
 	ret = ringbuf_init(&client->recvRingBuf, CLI_RECVBUF_SIZE);
 	if(ret != 0)
 	{
-		ret = -2;
+		ret = -4;
 		goto ERR_2;
 	}
 
@@ -168,6 +219,14 @@ int client_protoAnaly(struct clientInfo *client, uint8_t *pack, uint32_t pack_le
 			ret = client_0x01_login(client, data, data_len, ack_buf, PROTO_PACK_MAX_LEN, &ack_len);
 			break;
 
+		case 0x03:
+			ret = client_0x03_heartbeat(client, data, data_len, ack_buf, PROTO_PACK_MAX_LEN, &ack_len);
+			break;
+
+		case 0x10:
+			ret = client_0x10_sendCaptureFrame(client, data, data_len, ack_buf, PROTO_PACK_MAX_LEN, &ack_len);
+			break;
+
 		default:
 			printf("ERROR: protocol cmd[0x%02x] not exist!\n", cmd);
 			break;
@@ -215,11 +274,20 @@ void *socket_client_thread(void *arg)
 	time_t heartbeat_time = 0;
 	time_t login_time = 0;
 	time_t tmpTime;
+	char svr_str[32];
+	char *ip, *port;
 	int ret;
 
-	ret = client_init(client, (char *)CONFIG_SERVER_IP(main_mngr.config_ini), CONFIG_SERVER_PORT(main_mngr.config_ini));
+	strcpy(svr_str, (char *)arg);
+
+	// get ip and port
+	ip = strtok((char *)svr_str, ":");
+	port = strtok(NULL, ":");
+
+	ret = client_init(client, ip, atoi(port));
 	if(ret != 0)
 	{
+		printf("ERROR: client_init failed, ret=%d!\n", ret);
 		return NULL;
 	}
 
@@ -281,12 +349,14 @@ void *socket_client_thread(void *arg)
 }
 
 
-int start_socket_client_task(void)
+int start_socket_client_task(char *svr_str)
 {
 	pthread_t tid;
+	static char ip_str[32];
 	int ret;
 
-	ret = pthread_create(&tid, NULL, socket_client_thread, NULL);
+	strcpy(ip_str, svr_str);
+	ret = pthread_create(&tid, NULL, socket_client_thread, ip_str);
 	if(ret != 0)
 	{
 		return -1;

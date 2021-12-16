@@ -318,14 +318,12 @@ void *capture_thread(void *arg)
 
 		index ++;
 
-		#if 1
 		/* send frame */
 		ret = capture_get_newframe(frame_buf, frame_size, &frame_len);
 		if(ret == 0)
 		{
-			proto_0x21_sendCaptureFrame(main_mngr.socket_handle, 0, frame_buf, frame_len);
+			proto_0x10_sendCaptureFrame(main_mngr.socket_handle, 0, frame_buf, frame_len);
 		}
-		#endif
 	}
 	capture->run = 0;
 
