@@ -18,10 +18,18 @@ extern "C" {
 #define SVR_RECVBUF_SIZE			(PROTO_PACK_MAX_LEN*6)
 #define SVR_SENDBUF_SIZE			PROTO_PACK_MAX_LEN
 
+typedef enum
+{
+	STATE_CLOSE,
+	STATE_DISCONNECT,
+	STATE_CONNECTED,
+}sockState_e;
+
 
 struct clientInfo
 {
 	int fd;
+	sockState_e state;
 	int protoHandle;
 	pthread_mutex_t	send_mutex;
 	struct sockaddr_in addr;
@@ -31,7 +39,6 @@ struct clientInfo
 	int packLen;
 	uint8_t ack_buf[PROTO_PACK_MAX_LEN];
 	uint8_t tmpBuf[PROTO_PACK_MAX_LEN];
-	int identity;		// client_identity_e
 };
 
 struct serverInfo

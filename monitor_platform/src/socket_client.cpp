@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 
-struct clientInfo client_info;
+struct client_mngr_info client_mngr = {0};
 int global_seq;
 
 extern struct main_mngr_info main_mngr;
@@ -142,6 +142,7 @@ void client_deinit(struct clientInfo *client)
 {
 	ringbuf_deinit(&client->recvRingBuf);
 	close(client->fd);
+	printf("%s: close socket fd=%d.\n", __FUNCTION__, client->fd);
 }
 
 int client_sendData(void *arg, uint8_t *data, int len)
@@ -270,7 +271,7 @@ int client_protoHandle(struct clientInfo *client)
 
 void *socket_client_thread(void *arg)
 {
-	struct clientInfo *client = &client_info;
+	struct clientInfo *client = NULL;
 	time_t heartbeat_time = 0;
 	time_t login_time = 0;
 	time_t tmpTime;
@@ -278,27 +279,36 @@ void *socket_client_thread(void *arg)
 	char *ip, *port;
 	int ret;
 
+	printf("%s: tid=%ld enter ++\n", __FUNCTION__, pthread_self());
+
 	strcpy(svr_str, (char *)arg);
 
 	// get ip and port
 	ip = strtok((char *)svr_str, ":");
 	port = strtok(NULL, ":");
+	if(ip==NULL || port==NULL)
+	{
+		printf("ERROR: ip or port input illegal!\n");
+		goto ERR_0;
+	}
+
+	client = (struct clientInfo *)malloc(sizeof(struct clientInfo));
+	if(client == NULL)
+		goto ERR_0;
 
 	ret = client_init(client, ip, atoi(port));
 	if(ret != 0)
 	{
 		printf("ERROR: client_init failed, ret=%d!\n", ret);
-		return NULL;
+		goto ERR_1;
 	}
 
-	while(1)
+	client_mngr_join_client(pthread_self(), client);
+
+	while(client->state != STATE_CLOSE)
 	{
 		switch (client->state)
 		{
-			case STATE_DISABLE:
-				//printf("%s %d: state STATE_DISABLE ...\n", __FUNCTION__, __LINE__);
-				break;
-
 			case STATE_DISCONNECT:
 				ret = connect(client->fd, (struct sockaddr *)&client->srv_addr, sizeof(client->srv_addr));
 				if(ret == 0)
@@ -316,7 +326,6 @@ void *socket_client_thread(void *arg)
 					proto_0x01_login(client->protoHandle, (uint8_t *)"user_name", (uint8_t *)"pass_word");
 					login_time = tmpTime;
 				}
-				
 				break;
 
 			case STATE_LOGIN:
@@ -346,10 +355,19 @@ void *socket_client_thread(void *arg)
 
 	client_deinit(client);
 
+ERR_1:
+	free(client);
+
+ERR_0:
+	mainwin_video_disconnect(pthread_self());
+
+	printf("%s: exit --\n", __FUNCTION__);
+	return NULL;
 }
 
 
-int start_socket_client_task(char *svr_str)
+// return thread id
+pthread_t start_socket_client_task(char *svr_str)
 {
 	pthread_t tid;
 	static char ip_str[32];
@@ -362,10 +380,94 @@ int start_socket_client_task(char *svr_str)
 		return -1;
 	}
 
+	client_mngr_join_client(tid, NULL);
+
+	return tid;
+}
+
+void client_mngr_join_client(pthread_t tid, struct clientInfo *client)
+{
+	int find_flag = 0;
+	int idle_index;
+	int i;
+
+	for(i=0; i<CLIENT_NUM_MAX; i++)
+	{
+		if(client_mngr.client_tid[i] == tid)
+		{
+			client_mngr.client[i] = client;
+			find_flag = 0;
+			break;
+		}
+		if(find_flag==0 && client_mngr.client_tid[i]==0)
+		{
+			idle_index = i;
+			find_flag = 1;
+		}
+	}
+
+	if(find_flag)
+	{
+		client_mngr.client_tid[idle_index] = tid;
+		client_mngr.client[idle_index] = client;
+		client_mngr.client_num ++;
+	}
+	printf("%s: tid=%ld join ++\n", __FUNCTION__, tid);
+}
+
+void client_mngr_set_client_exit(pthread_t tid)
+{
+	int i;
+
+	for(i=0; i<CLIENT_NUM_MAX; i++)
+	{
+		if(client_mngr.client_tid[i] == tid)
+		{
+			client_mngr.client_tid[i] = (pthread_t)(-1);
+			break;
+		}
+	}
+
+	printf("%s: set tid=%ld exit --\n", __FUNCTION__, tid);
+}
+
+void *socket_client_mngr_thread(void *arg)
+{
+	int i;
+
+	printf("%s: enter ++\n", __FUNCTION__);
+
+	memset(&client_mngr, 0, sizeof(struct client_mngr_info));
+
+	while(1)
+	{
+		for(i=0; i<CLIENT_NUM_MAX; i++)
+		{
+			if(client_mngr.client_tid[i]==(pthread_t)(-1) && client_mngr.client[i]!=NULL)
+			{
+				client_mngr.client[i]->state = STATE_CLOSE;
+				client_mngr.client_tid[i] = 0;
+				client_mngr.client[i] = NULL;
+			}
+		}
+
+		usleep(200 *1000);
+	}
+
 	return 0;
 }
 
+int socket_client_mngr_init(void)
+{
+	pthread_t tid;
+	int ret;
 
+	ret = pthread_create(&tid, NULL, socket_client_mngr_thread, NULL);
+	if(ret != 0)
+	{
+		return -1;
+	}
 
-
+	return 0;
+}
 

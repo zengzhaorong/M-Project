@@ -70,7 +70,7 @@ int newframe_get_one(unsigned char *data, uint32_t size, int *len)
 	return 0;
 }
 
-int newframe_clear(void)
+int newframe_clear(int index)
 {
 	pthread_mutex_lock(&newframe_mut);
 	memset(newframe_buf, 0, FRAME_BUF_SIZE);
@@ -102,7 +102,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 	int y_pix = 0;
 	int funcArea_width;
 	int widget_height;
-	int video_num = 4;
 	int width, height;
 	QImage image;
 	QFont font;
@@ -122,12 +121,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 	backgroundImg.load(WIN_BACKGRD_IMG);
 
 	/* show video area */
-	//lab_video = new QLabel(mainWindow);
-	//lab_video.setPixmap(QPixmap::fromImage(backgroundImg));
-	//lab_video.setGeometry(0, 0, CONFIG_CAPTURE_WIDTH(main_mngr.config_ini), CONFIG_CAPTURE_HEIGH(main_mngr.config_ini));
-	//lab_video.show();
-
-	for(int i=0; i<video_num; i++)
+	for(int i=0; i<VIDEO_AREA_NUM; i++)
 	{
 		QLabel *lab_video = new QLabel(mainWindow);
 		QLineEdit *edit_input = new QLineEdit(lab_video);
@@ -143,12 +137,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent)
 		videoArea.push_back(lab_video);
 		ipPortEdit.push_back(edit_input);
 		connectBtn.push_back(conn_btn);
+		client_tid.push_back(0);
 	}
 
 	QPixmap pixmap;
 	QPixmap fitpixmap;
-	width = CONFIG_CAPTURE_WIDTH(main_mngr.config_ini)/sqrt(video_num);
-	height = CONFIG_CAPTURE_HEIGH(main_mngr.config_ini)/sqrt(video_num);
+	width = CONFIG_CAPTURE_WIDTH(main_mngr.config_ini)/sqrt(VIDEO_AREA_NUM);
+	height = CONFIG_CAPTURE_HEIGH(main_mngr.config_ini)/sqrt(VIDEO_AREA_NUM);
 	videoArea[0]->setGeometry(160, 40, width, height);
 	pixmap = QPixmap::fromImage(backgroundImg);
 	fitpixmap = pixmap.scaled(width, height, Qt::KeepAspectRatio, Qt::SmoothTransformation);
@@ -221,6 +216,7 @@ void MainWindow::showMainwindow(void)
 {
 	int len;
 	int ret;
+	int i;
 
 	timer->stop();
 
@@ -229,17 +225,24 @@ void MainWindow::showMainwindow(void)
 	clockLabel->setText(str);
 
 	/* show capture image */
-	ret = newframe_get_one(video_buf, buf_size, &len);
-	if(ret == 0)
+	for(i=0; i<VIDEO_AREA_NUM; i++)
 	{
-		QImage videoQImage;
-		QPixmap pixmap;
+		if(client_tid[i])
+		{
+			ret = newframe_get_one(video_buf, buf_size, &len);
+			if(ret == 0)
+			{
+				QImage videoQImage;
+				QPixmap pixmap;
 
-		videoQImage = jpeg_to_QImage(video_buf, len);
-		pixmap = QPixmap::fromImage(videoQImage);
-		pixmap = pixmap.scaled(videoArea[0]->width(), videoArea[0]->height(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-		videoArea[0]->setPixmap(pixmap);
-		videoArea[0]->show();
+				videoQImage = jpeg_to_QImage(video_buf, len);
+				pixmap = QPixmap::fromImage(videoQImage);
+				pixmap = pixmap.scaled(videoArea[i]->width(), videoArea[i]->height(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+				videoArea[i]->setPixmap(pixmap);
+				videoArea[i]->show();
+			}
+		}
+		
 	}
 
 	timer->start(TIMER_INTERV_MS);
@@ -250,34 +253,73 @@ void MainWindow::connect_svr(void)
 {
 	// get sender obj
 	QPushButton *btn = qobject_cast<QPushButton *>(sender());
+	QTextCodec *codec = QTextCodec::codecForName("GBK");
 	QString svr_str;
 	QByteArray ba;
 	char ip_str[32];
 	int index;
 	
-	for(index=0; index<4; index++)
+	for(index=0; index<VIDEO_AREA_NUM; index++)
 	{
 		if(btn == connectBtn[index])
 		{
-			svr_str = ipPortEdit[index]->text();
-			if(svr_str.length() <9 || svr_str.length() >20)
-			{
-				cout << "IP input error!\n" << endl;
-				return ;
-			}
-			qDebug() << svr_str;
+			break;
 		}
 	}
 
-	ba = svr_str.toLatin1();
-	memset(ip_str, 0, sizeof(ip_str));
-	strncpy((char *)ip_str, ba.data(), strlen(ba.data()));
+	if(client_tid[index] == 0)	// connect
+	{
+		svr_str = ipPortEdit[index]->text();
+		if(svr_str.length() <9 || svr_str.length() >20)
+		{
+			cout << "IP input error!\n" << endl;
+			return ;
+		}
+		qDebug() << svr_str;
 
-	// start socket client connect
-	start_socket_client_task(ip_str);
+		ba = svr_str.toLatin1();
+		memset(ip_str, 0, sizeof(ip_str));
+		strncpy((char *)ip_str, ba.data(), strlen(ba.data()));
+
+		// start socket client connect
+		client_tid[index] = start_socket_client_task(ip_str);
+		if(client_tid[index] > 0)
+		{
+			ipPortEdit[index]->setEnabled(false);
+			connectBtn[index]->setText(codec->toUnicode(TEXT_DISCONNECT));
+		}
+		newframe_clear(index);
+	}
+	else	// disconnect
+	{
+		cout << "disconnect server." << endl;
+		disconnect_svr(index);
+	}
 
 }
 
+void MainWindow::disconnect_svr(int index)
+{
+	QTextCodec *codec = QTextCodec::codecForName("GBK");
+
+	cout << "video disconnect " << index << endl;
+
+	client_mngr_set_client_exit(client_tid[index]);
+
+	client_tid[index] = 0;
+	ipPortEdit[index]->setEnabled(true);
+	connectBtn[index]->setText(codec->toUnicode(TEXT_CONNECT));
+
+	QPixmap pixmap;
+	QPixmap fitpixmap;
+	int width = CONFIG_CAPTURE_WIDTH(main_mngr.config_ini)/sqrt(VIDEO_AREA_NUM);
+	int height = CONFIG_CAPTURE_HEIGH(main_mngr.config_ini)/sqrt(VIDEO_AREA_NUM);
+	pixmap = QPixmap::fromImage(backgroundImg);
+	fitpixmap = pixmap.scaled(width, height, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+	videoArea[index]->setPixmap(fitpixmap);
+	videoArea[index]->show();
+	newframe_clear(index);
+}
 
 int mainwindow_init(void)
 {
@@ -293,6 +335,17 @@ int mainwindow_init(void)
 void mainwindow_deinit(void)
 {
 
+}
+
+void mainwin_video_disconnect(pthread_t tid)
+{
+	for(int index=0; index<VIDEO_AREA_NUM; index++)
+	{
+		if(mainwindow->client_tid[index] == tid)
+		{
+			mainwindow->disconnect_svr(index);
+		}
+	}
 }
 
 /* notice:

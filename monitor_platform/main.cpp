@@ -35,5 +35,7 @@ int main(int argc, char* argv[])
 	
 	start_mainwindow_task();
 
+	socket_client_mngr_init();
+	
 	return qtApp.exec();		// start qt application, message loop ...
 }

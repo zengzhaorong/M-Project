@@ -14,14 +14,14 @@ extern "C" {
 }
 #endif
 
-
+#define CLIENT_NUM_MAX				10
 #define CLI_SENDBUF_SIZE			PROTO_PACK_MAX_LEN
 #define CLI_RECVBUF_SIZE			(PROTO_PACK_MAX_LEN*3)
 #define HEARTBEAT_INTERVAL_S		10
 
 typedef enum
 {
-	STATE_DISABLE,
+	STATE_CLOSE,
 	STATE_DISCONNECT,
 	STATE_CONNECTED,
 	STATE_LOGIN,
@@ -40,10 +40,19 @@ struct clientInfo
 	int packLen;
 	uint8_t ack_buf[PROTO_PACK_MAX_LEN];
 	uint8_t tmpBuf[PROTO_PACK_MAX_LEN];
-	int identity;		// client_identity_e
 };
 
-int start_socket_client_task(char *svr_str);
+struct client_mngr_info
+{
+	int client_num;
+	struct clientInfo *client[CLIENT_NUM_MAX];
+	pthread_t client_tid[CLIENT_NUM_MAX];
+};
+
+pthread_t start_socket_client_task(char *svr_str);
+void client_mngr_join_client(pthread_t tid, struct clientInfo *client);
+void client_mngr_set_client_exit(pthread_t tid);
+int socket_client_mngr_init(void);
 
 
 #endif	// _SOCKET_CLIENT_H_

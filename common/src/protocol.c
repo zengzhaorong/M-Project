@@ -356,9 +356,13 @@ int proto_register(void *arg, send_func_t send_func, int buf_size)
 void proto_unregister(int handle)
 {
 	protoObject[handle].used = 0;
+	protoObject[handle].send_func = NULL;
 	
 	if(protoObject[handle].send_buf != NULL)
+	{
 		free(protoObject[handle].send_buf);
+		protoObject[handle].send_buf = NULL;
+	}
 	
 }
 

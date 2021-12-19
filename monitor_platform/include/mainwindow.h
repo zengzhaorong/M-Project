@@ -34,7 +34,7 @@ extern "C" {
 #define Y_INTERV_PIXEL_EX		8
 #define WIDGET_HEIGHT_PIXEL		30
 #define FUNC_AREA_PIXEL_X		CONFIG_CAPTURE_WIDTH(main_mngr.config_ini)
-
+#define VIDEO_AREA_NUM 			4
 #define TIMER_INTERV_MS			1
 
 #define WIN_BACKGRD_IMG			"resource/background.jpg"		// ΩÁ√Ê±≥æ∞Õº
@@ -74,14 +74,17 @@ private slots:
 	void connect_svr(void);
 
 public:
-	int 			mainwin_mode;
+	void disconnect_svr(int index);
+
+	vector<pthread_t> 	client_tid;			// video client tid
 };
 
 
 int newframe_update(unsigned char *data, int len);
 int newframe_get_one(unsigned char *data, uint32_t size, int *len);
-int newframe_clear(void);
+int newframe_clear(int index);
 
+void mainwin_video_disconnect(pthread_t tid);
 int start_mainwindow_task(void);
 
 

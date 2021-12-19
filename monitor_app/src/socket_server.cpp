@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include "socket_server.h"
 #include "config.h"
-
+#include <errno.h>
 
 /* C++ include C */
 #ifdef __cplusplus
@@ -128,8 +128,8 @@ int server_sendData(void *arg, uint8_t *data, int len)
 	struct clientInfo *client = (struct clientInfo *)arg;
 	int total = 0;
 	int ret;
-
-	if(data == NULL)
+	
+	if(client->state==STATE_CLOSE || data==NULL)
 		return -1;
 	
 	// lock
@@ -138,8 +138,18 @@ int server_sendData(void *arg, uint8_t *data, int len)
 		ret = send(client->fd, data +total, len -total, 0);
 		if(ret < 0)
 		{
-			usleep(1000);
-			continue;
+			if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
+			{
+				usleep(1000);
+				continue;
+			}
+			else
+			{
+				client->state = STATE_CLOSE;
+				perror("socket send failed");
+				printf("ret: %d, errno = %d\n", ret, errno);
+				break;
+			}
 		}
 		total += ret;
 	}while(total < len);
@@ -155,7 +165,10 @@ int server_recvData(struct clientInfo *client)
 	int len, space;
 	int ret = 0;
 
-	if(client == NULL)
+	if(client==NULL)
+		return -1;
+
+	if(client->state == STATE_CLOSE)
 		return -1;
 
 	space = ringbuf_space(&client->recvRingBuf);
@@ -165,6 +178,18 @@ int server_recvData(struct clientInfo *client)
 	if(len > 0)
 	{
 		ret = ringbuf_write(&client->recvRingBuf, tmpBuf, len);
+	}
+	else
+	{
+		if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
+		{
+		}
+		else
+		{
+			client->state = STATE_CLOSE;
+			perror("socket recv failed");
+			printf("ret: %d, errno = %d\n", ret, errno);
+		}
 	}
 
 	return ret;
@@ -241,6 +266,60 @@ int server_protoHandle(struct clientInfo *client)
 	return 0;
 }
 
+struct clientInfo *socket_set_client(int fd, struct sockaddr_in *cli_addr)
+{
+	struct serverInfo *server = &server_info;
+	int client_index;
+	int i;
+
+	for(i=0; i<MAX_CLIENT_NUM; i++)
+	{
+		if(server->client_used[i] == 0)		// can use this
+		{
+			client_index = i;
+			break;
+		}
+	}
+
+	if(i >= MAX_CLIENT_NUM)
+	{
+		printf("%s: ERROR: Not find idle client!\n", __FUNCTION__);
+		return NULL;
+	}
+
+	server->client[client_index].fd = fd;
+	memcpy(&server->client[client_index].addr, cli_addr, sizeof(struct sockaddr_in));
+	server->client_used[client_index] = 1;
+	server->client_cnt ++;
+	main_mngr.socket_handle = client_index;
+
+	printf("%s: set client[%d] fd=%d\n", __FUNCTION__, client_index, fd);
+	return &server->client[client_index];
+}
+
+void socket_reset_client(struct clientInfo *client)
+{
+	struct serverInfo *server = &server_info;
+	int client_index;
+	int i;
+
+	for(i=0; i<MAX_CLIENT_NUM; i++)
+	{
+		if(server->client[i].fd == client->fd)		// can use this
+		{
+			client_index = i;
+			break;
+		}
+	}
+	
+	server->client_used[client_index] = 0;
+	server->client_cnt --;
+
+	close(client->fd);
+
+	printf("%s: reset client[%d] fd=%d\n", __FUNCTION__, client_index, client->fd);
+}
+
 void *socket_handle_thread(void *arg)
 {
 	struct clientInfo *client = (struct clientInfo *)arg;
@@ -259,25 +338,30 @@ void *socket_handle_thread(void *arg)
 		return NULL;
 
 	client->protoHandle = proto_register(client, server_sendData, SVR_SENDBUF_SIZE);
-	client->identity = -1;
+	client->state = STATE_CONNECTED;
 
-	while(1)
+	while(client->state != STATE_CLOSE)
 	{
 		server_protoHandle(client);
 	}
 
+	proto_unregister(client->protoHandle);
 	ringbuf_deinit(&client->recvRingBuf);
+
+	socket_reset_client(client);
+	printf("%s: exit --\n", __FUNCTION__);
+	return NULL;
 }
 
 void *socket_listen_thread(void *arg)
 {
 	struct serverInfo *server = &server_info;
+	struct clientInfo *client;
 	struct sockaddr_in cli_addr;
 	pthread_t tid;
-	int tmpSock, client_index;
+	int cli_sockfd;
 	int tmpLen;
 	int ret;
-	int i;
 
 	ret = server_init(server, CONFIG_SERVER_PORT(main_mngr.config_ini));
 	if(ret != 0)
@@ -294,27 +378,19 @@ void *socket_listen_thread(void *arg)
 		}
 		
 		memset(&cli_addr, 0, sizeof(struct sockaddr_in));
-		tmpSock = accept(server->fd, (struct sockaddr *)&cli_addr, (socklen_t *)&tmpLen);
-		if(tmpSock < 0)
+		cli_sockfd = accept(server->fd, (struct sockaddr *)&cli_addr, (socklen_t *)&tmpLen);
+		if(cli_sockfd < 0)
 			continue;
-		printf("%s %d: *************** accept socket success, sock fd: %d ...\n", __FUNCTION__, __LINE__, tmpSock);
+		printf("%s %d: *************** accept socket success, sock fd: %d ...\n", __FUNCTION__, __LINE__, cli_sockfd);
 
-		for(i=0; i<MAX_CLIENT_NUM; i++)
+		client = socket_set_client(cli_sockfd, &cli_addr);
+		if(client == NULL)
 		{
-			if(server->client_used[i] == 0)		// can use this
-			{
-				client_index = i;
-				break;
-			}
+			printf("ERROR: %s %d: socket_set_client failed !!!\n", __FUNCTION__, __LINE__);
+			continue;
 		}
 
-		server->client[client_index].fd = tmpSock;
-		memcpy(&server->client[client_index].addr, &cli_addr, sizeof(struct sockaddr_in));
-		server->client_used[client_index] = 1;
-		server->client_cnt ++;
-		main_mngr.socket_handle = client_index;
-		
-		ret = pthread_create(&tid, NULL, socket_handle_thread, &server->client[client_index]);
+		ret = pthread_create(&tid, NULL, socket_handle_thread, client);
 		if(ret != 0)
 		{
 			printf("ERROR: %s %d: pthread_create failed !!!\n", __FUNCTION__, __LINE__);
@@ -324,6 +400,8 @@ void *socket_listen_thread(void *arg)
 
 	server_deinit();
 
+	printf("%s: exit --\n", __FUNCTION__);
+	return NULL;
 }
 
 
