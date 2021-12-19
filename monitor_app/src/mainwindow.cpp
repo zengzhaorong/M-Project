@@ -5,13 +5,13 @@
 #include "config.h"
 #include "mainwindow.h"
 #include "image_convert.h"
-#include "capture.h"
 
 
 /* C++ include C */
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "capture.h"
 #include "protocol.h"
 #include "public.h"
 #ifdef __cplusplus

@@ -22,7 +22,6 @@
   *
   */
 
-#define MAX_PROTO_OBJ	10
 struct proto_object protoObject[MAX_PROTO_OBJ];
 static uint8_t tmp_protoBuf[PROTO_PACK_MAX_LEN];
 
@@ -347,6 +346,28 @@ int proto_detectPack(struct ringbuffer *ringbuf, struct detect_info *detect, \
 	return -1;
 }
 
+int proto_get_handle_list(int *list_buf, int buf_size, int *num)
+{
+	int i, j;
+
+	if(list_buf==NULL || num==NULL)
+		return -1;
+
+	for(i=0,j=0; i<MAX_PROTO_OBJ; i++)
+	{
+		if(protoObject[i].used)		// can use this
+		{
+			list_buf[j++] = i;
+			if(j >= buf_size)
+				break;
+		}
+	}
+	
+	*num = j;
+
+	return 0;
+}
+
 /* return: handle */
 int proto_register(void *arg, send_func_t send_func, int buf_size)
 {
@@ -357,7 +378,6 @@ int proto_register(void *arg, send_func_t send_func, int buf_size)
 	{
 		if(protoObject[i].used == 0)
 		{
-			printf("find unused, i=%d\n", i);
 			protoObject[i].arg = arg;
 			protoObject[i].send_func = send_func;
 
@@ -368,7 +388,6 @@ int proto_register(void *arg, send_func_t send_func, int buf_size)
 			
 			protoObject[i].used = 1;
 			handle = i;
-			printf("find unused, handle=%d, used: %d\n", handle, protoObject[i].used);
 			break;
 		}
 	}
@@ -381,7 +400,6 @@ void proto_unregister(int handle)
 	protoObject[handle].used = 0;
 	protoObject[handle].send_func = NULL;
 	
-			printf("### find unused, handle=%d\n", handle);
 	if(protoObject[handle].send_buf != NULL)
 	{
 		free(protoObject[handle].send_buf);

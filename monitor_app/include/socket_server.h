@@ -52,7 +52,6 @@ struct serverInfo
 
 
 int server_sendData(void *arg, uint8_t *data, int len);
-int socket_get_handle_list(int *list_buf, int buf_size, int *num);
 int start_socket_server_task(void);
 
 

@@ -2,12 +2,12 @@
 #include <QApplication>
 #include "mainwindow.h"
 #include "socket_server.h"
-#include "capture.h"
 
 /* C++ include C */
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "capture.h"
 #ifdef __cplusplus
 }
 #endif

@@ -323,31 +323,6 @@ void socket_reset_client(struct clientInfo *client)
 	printf("%s: reset client[%d] fd=%d\n", __FUNCTION__, client_index, client->fd);
 }
 
-int socket_get_handle_list(int *list_buf, int buf_size, int *num)
-{
-	struct serverInfo *server = &server_info;
-	struct clientInfo *client;
-	int i, j;
-
-	if(list_buf==NULL || num==NULL)
-		return -1;
-
-	for(i=0,j=0; i<MAX_CLIENT_NUM; i++)
-	{
-		if(server->client_used[i])		// can use this
-		{
-			client = &server->client[i];
-			list_buf[j++] = client->protoHandle;
-			if(j >= buf_size)
-				break;
-		}
-	}
-	
-	*num = j;
-
-	return 0;
-}
-
 void *socket_handle_thread(void *arg)
 {
 	struct clientInfo *client = (struct clientInfo *)arg;

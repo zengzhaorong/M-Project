@@ -5,6 +5,8 @@
 #include "public.h"
 #include "type.h"
 
+#define MAX_PROTO_OBJ	10
+
 #define PROTO_HEAD_OFFSET		0
 #define PROTO_VERIFY_OFFSET		(PROTO_HEAD_OFFSET +1)
 #define PROTO_SEQ_OFFSET		(PROTO_VERIFY_OFFSET +4)
@@ -67,6 +69,7 @@ int proto_analyPacket(uint8_t *pack, int packLen, uint8_t *seq, \
 								uint8_t *cmd, int *len, uint8_t **data);
 int proto_detectPack(struct ringbuffer *ringbuf, struct detect_info *detect, \
 								uint8_t *proto_data, int size, int *proto_len);
+int proto_get_handle_list(int *list_buf, int buf_size, int *num);
 int proto_register(void *arg, send_func_t send_func, int buf_size);
 void proto_unregister(int handle);
 int proto_init(void);

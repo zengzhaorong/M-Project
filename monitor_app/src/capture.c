@@ -333,7 +333,7 @@ void *capture_thread(void *arg)
 		ret = capture_get_newframe(frame_buf, frame_size, &frame_len);
 		if(ret == 0)
 		{
-			socket_get_handle_list(sock_list, sizeof(sock_list)/sizeof(sock_list[0]), &sock_num);
+			proto_get_handle_list(sock_list, sizeof(sock_list)/sizeof(sock_list[0]), &sock_num);
 			for(i=0; i<sock_num; i++)
 			{
 				proto_0x10_sendCaptureFrame(sock_list[i], 0, frame_buf, frame_len);
