@@ -78,7 +78,7 @@ int client_0x10_sendCaptureFrame(struct clientInfo *client, uint8_t *data, int l
 	offset += 4;
 
 	/* update frame data */
-	newframe_update(data +offset, frame_len);
+	videoframe_update(pthread_self(), data +offset, frame_len);
 
 	return 0;
 }

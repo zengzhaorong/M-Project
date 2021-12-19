@@ -47,6 +47,16 @@ extern "C" {
 
 using namespace std;
 
+struct videoframe_info
+{
+	int index;
+	pthread_t tid;
+	uint8_t *frame_buf;
+	uint32_t frame_len;
+	pthread_mutex_t	mutex;
+};
+
+
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
@@ -80,9 +90,9 @@ public:
 };
 
 
-int newframe_update(unsigned char *data, int len);
-int newframe_get_one(unsigned char *data, uint32_t size, int *len);
-int newframe_clear(int index);
+int videoframe_update(pthread_t tid, uint8_t *data, int len);
+int videoframe_get_one(int index, uint8_t *data, uint32_t size, int *len);
+int videoframe_clear(int index);
 
 void mainwin_video_disconnect(pthread_t tid);
 int start_mainwindow_task(void);
