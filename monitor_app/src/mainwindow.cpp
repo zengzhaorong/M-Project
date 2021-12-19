@@ -5,6 +5,7 @@
 #include "config.h"
 #include "mainwindow.h"
 #include "image_convert.h"
+#include "capture.h"
 
 
 /* C++ include C */
@@ -12,7 +13,6 @@
 extern "C" {
 #endif
 #include "protocol.h"
-#include "capture.h"
 #include "public.h"
 #ifdef __cplusplus
 }
@@ -93,7 +93,7 @@ MainWindow::~MainWindow(void)
 
 void MainWindow::showMainwindow(void)
 {
-	int len;
+	uint32_t len;
 	int ret;
 
 	timer->stop();

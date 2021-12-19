@@ -13,7 +13,7 @@ extern "C" {
 }
 #endif
 
-#define MAX_CLIENT_NUM 				2
+#define MAX_CLIENT_NUM 				10
 #define MAX_LISTEN_NUM 				5
 #define SVR_RECVBUF_SIZE			(PROTO_PACK_MAX_LEN*6)
 #define SVR_SENDBUF_SIZE			PROTO_PACK_MAX_LEN
@@ -52,6 +52,7 @@ struct serverInfo
 
 
 int server_sendData(void *arg, uint8_t *data, int len);
+int socket_get_handle_list(int *list_buf, int buf_size, int *num);
 int start_socket_server_task(void);
 
 

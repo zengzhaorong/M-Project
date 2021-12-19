@@ -126,8 +126,6 @@ int client_init(struct clientInfo *client, char *srv_ip, int srv_port)
 		goto ERR_2;
 	}
 
-	proto_init();
-
 	return 0;
 
 ERR_2:
@@ -151,7 +149,7 @@ int client_sendData(void *arg, uint8_t *data, int len)
 	int total = 0;
 	int ret;
 
-	if(data == NULL)
+	if(data==NULL || client->state==STATE_CLOSE)
 		return -1;
 
 	/* add sequence */
@@ -163,8 +161,18 @@ int client_sendData(void *arg, uint8_t *data, int len)
 		ret = send(client->fd, data +total, len -total, 0);
 		if(ret < 0)
 		{
-			usleep(1000);
-			continue;
+			if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
+			{
+				usleep(1000);
+				continue;
+			}
+			else
+			{
+				client->state = STATE_CLOSE;
+				perror("socket send failed");
+				printf("ret: %d, errno = %d\n", ret, errno);
+				break;
+			}
 		}
 		total += ret;
 	}while(total < len);
@@ -183,6 +191,9 @@ int client_recvData(struct clientInfo *client)
 	if(client == NULL)
 		return -1;
 
+	if(client->state == STATE_CLOSE)
+		return -1;
+
 	space = ringbuf_space(&client->recvRingBuf);
 
 	memset(tmpBuf, 0, PROTO_PACK_MAX_LEN);
@@ -190,6 +201,15 @@ int client_recvData(struct clientInfo *client)
 	if(len > 0)
 	{
 		ret = ringbuf_write(&client->recvRingBuf, tmpBuf, len);
+	}
+	else if(len < 0)
+	{
+		if(errno != EINTR && errno != EWOULDBLOCK && errno != EAGAIN)
+		{
+			client->state = STATE_CLOSE;
+			perror("socket recv failed");
+			printf("ret: %d, errno = %d\n", len, errno);
+		}
 	}
 
 	return ret;
@@ -218,6 +238,9 @@ int client_protoAnaly(struct clientInfo *client, uint8_t *pack, uint32_t pack_le
 	{
 		case 0x01:
 			ret = client_0x01_login(client, data, data_len, ack_buf, PROTO_PACK_MAX_LEN, &ack_len);
+			break;
+
+		case 0x02:
 			break;
 
 		case 0x03:
@@ -273,6 +296,7 @@ void *socket_client_thread(void *arg)
 {
 	struct clientInfo *client = NULL;
 	time_t heartbeat_time = 0;
+	time_t init_time = 0;
 	time_t login_time = 0;
 	time_t tmpTime;
 	char svr_str[32];
@@ -305,6 +329,7 @@ void *socket_client_thread(void *arg)
 
 	client_mngr_join_client(pthread_self(), client);
 
+	init_time = time(NULL);
 	while(client->state != STATE_CLOSE)
 	{
 		switch (client->state)
@@ -316,6 +341,11 @@ void *socket_client_thread(void *arg)
 					client->protoHandle = proto_register(client, client_sendData, CLI_SENDBUF_SIZE);
 					client->state = STATE_CONNECTED;
 					printf("********** socket connect successfully, handle: %d.\n", client->protoHandle);
+				}
+				tmpTime = time(NULL);
+				if(abs(tmpTime - init_time) >= 3)
+				{
+					client_mngr_set_client_exit(pthread_self());
 				}
 				break;
 
@@ -335,6 +365,13 @@ void *socket_client_thread(void *arg)
 					proto_0x03_sendHeartBeat(client->protoHandle);
 					heartbeat_time = tmpTime;
 				}
+				break;
+
+			case STATE_LOGOUT:
+				printf("%s: Client[handle: %d] logout.\n", __FUNCTION__, client->protoHandle);
+				proto_0x02_logout(client->protoHandle);
+				client->state = STATE_CLOSE;
+				proto_unregister(client->protoHandle);
 				break;
 
 			default:
@@ -435,8 +472,6 @@ void *socket_client_mngr_thread(void *arg)
 {
 	int i;
 
-	printf("%s: enter ++\n", __FUNCTION__);
-
 	memset(&client_mngr, 0, sizeof(struct client_mngr_info));
 
 	while(1)
@@ -445,9 +480,18 @@ void *socket_client_mngr_thread(void *arg)
 		{
 			if(client_mngr.client_tid[i]==(pthread_t)(-1) && client_mngr.client[i]!=NULL)
 			{
-				client_mngr.client[i]->state = STATE_CLOSE;
 				client_mngr.client_tid[i] = 0;
+				if(client_mngr.client[i]->state >= STATE_CONNECTED)
+				{
+					client_mngr.client[i]->state = STATE_LOGOUT;
+				}
+				else
+				{
+					client_mngr.client[i]->state = STATE_CLOSE;
+				}
 				client_mngr.client[i] = NULL;
+				client_mngr.client_num --;
+				printf("%s: delete client from mngr list, client_num=%d.\n", __FUNCTION__, client_mngr.client_num);
 			}
 		}
 
@@ -461,6 +505,8 @@ int socket_client_mngr_init(void)
 {
 	pthread_t tid;
 	int ret;
+
+	proto_init();
 
 	ret = pthread_create(&tid, NULL, socket_client_mngr_thread, NULL);
 	if(ret != 0)

@@ -48,6 +48,14 @@ int server_0x01_login(struct clientInfo *client, uint8_t *data, int len, uint8_t
 	return 0;
 }
 
+int server_0x02_logout(struct clientInfo *client, uint8_t *data, int len, uint8_t *ack_data, int size, int *ack_len)
+{
+	client->state = STATE_CLOSE;
+	printf("%s: client logout.\n", __FUNCTION__);
+
+	return 0;
+}
+
 int server_0x03_heartbeat(struct clientInfo *client, uint8_t *data, int len, uint8_t *ack_data, int size, int *ack_len)
 {
 	uint32_t tmpTime;
@@ -103,8 +111,6 @@ int server_init(struct serverInfo *server, int port)
 		ret = -3;
 		goto ERR_2;
 	}
-
-	proto_init();
 
 	return 0;
 
@@ -179,16 +185,13 @@ int server_recvData(struct clientInfo *client)
 	{
 		ret = ringbuf_write(&client->recvRingBuf, tmpBuf, len);
 	}
-	else
+	else if(len < 0)
 	{
-		if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
-		{
-		}
-		else
+		if(errno != EINTR && errno != EWOULDBLOCK && errno != EAGAIN)
 		{
 			client->state = STATE_CLOSE;
 			perror("socket recv failed");
-			printf("ret: %d, errno = %d\n", ret, errno);
+			printf("ret: %d, errno = %d\n", len, errno);
 		}
 	}
 
@@ -221,6 +224,7 @@ int server_protoAnaly(struct clientInfo *client, uint8_t *pack, uint32_t pack_le
 			break;
 
 		case 0x02:
+			ret = server_0x02_logout(client, data, data_len, ack_buf, PROTO_PACK_MAX_LEN, &ack_len);
 			break;
 
 		case 0x03:
@@ -291,9 +295,8 @@ struct clientInfo *socket_set_client(int fd, struct sockaddr_in *cli_addr)
 	memcpy(&server->client[client_index].addr, cli_addr, sizeof(struct sockaddr_in));
 	server->client_used[client_index] = 1;
 	server->client_cnt ++;
-	main_mngr.socket_handle = client_index;
 
-	printf("%s: set client[%d] fd=%d\n", __FUNCTION__, client_index, fd);
+	printf("%s: set client[%d] fd=%d, client_cnt=%d\n", __FUNCTION__, client_index, fd, server->client_cnt);
 	return &server->client[client_index];
 }
 
@@ -318,6 +321,31 @@ void socket_reset_client(struct clientInfo *client)
 	close(client->fd);
 
 	printf("%s: reset client[%d] fd=%d\n", __FUNCTION__, client_index, client->fd);
+}
+
+int socket_get_handle_list(int *list_buf, int buf_size, int *num)
+{
+	struct serverInfo *server = &server_info;
+	struct clientInfo *client;
+	int i, j;
+
+	if(list_buf==NULL || num==NULL)
+		return -1;
+
+	for(i=0,j=0; i<MAX_CLIENT_NUM; i++)
+	{
+		if(server->client_used[i])		// can use this
+		{
+			client = &server->client[i];
+			list_buf[j++] = client->protoHandle;
+			if(j >= buf_size)
+				break;
+		}
+	}
+	
+	*num = j;
+
+	return 0;
 }
 
 void *socket_handle_thread(void *arg)
@@ -409,6 +437,8 @@ int start_socket_server_task(void)
 {
 	pthread_t tid;
 	int ret;
+
+	proto_init();
 
 	ret = pthread_create(&tid, NULL, socket_listen_thread, NULL);
 	if(ret != 0)

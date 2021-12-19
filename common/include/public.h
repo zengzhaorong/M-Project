@@ -24,7 +24,6 @@ struct daytm
 struct main_mngr_info
 {
 	dictionary *config_ini;	// .ini config file
-	int socket_handle;	// socket handle index
 };
 
 

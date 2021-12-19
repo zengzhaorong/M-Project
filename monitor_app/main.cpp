@@ -2,12 +2,12 @@
 #include <QApplication>
 #include "mainwindow.h"
 #include "socket_server.h"
+#include "capture.h"
 
 /* C++ include C */
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "capture.h"
 #ifdef __cplusplus
 }
 #endif
@@ -32,7 +32,6 @@ int main(int argc, char* argv[])
 		printf("WARNING: %s: load [%s] failed, will use default value.\n", __FUNCTION__, PATH_CONFIG_INI);
 		//return -1;	// will use default value
 	}
-	main_mngr.socket_handle = -1;
 	
 	start_mainwindow_task();
 

@@ -292,7 +292,6 @@ void MainWindow::connect_svr(void)
 	}
 	else	// disconnect
 	{
-		cout << "disconnect server." << endl;
 		disconnect_svr(index);
 	}
 

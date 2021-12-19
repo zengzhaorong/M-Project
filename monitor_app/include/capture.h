@@ -21,8 +21,8 @@ struct v4l2cap_info
 	struct buffer_info buffer[QUE_BUF_MAX_NUM];
 };
 
-int v4l2cap_update_newframe(unsigned char *data, int len);
-int capture_get_newframe(unsigned char *data, int size, int *len);
+int v4l2cap_update_newframe(unsigned char *data, unsigned int len);
+int capture_get_newframe(unsigned char *data, unsigned int size, unsigned int *len);
 int v4l2cap_clear_newframe(void);
 int start_capture_task(void);
 int capture_task_stop(void);

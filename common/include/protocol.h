@@ -56,9 +56,10 @@ struct Rect_params
 };
 
 int proto_0x01_login(int handle, uint8_t *usr_name, uint8_t *password);
+int proto_0x02_logout(int handle);
 int proto_0x03_sendHeartBeat(int handle);
 int proto_0x04_switch_monitor(int handle, uint8_t onoff);
-int proto_0x10_sendCaptureFrame(int handle, int format, void *frame, int len);
+int proto_0x10_sendCaptureFrame(int handle, int format, uint8_t *frame, int len);
 
 int proto_makeupPacket(uint8_t seq, uint8_t cmd, int len, uint8_t *data, \
 								uint8_t *outbuf, int size, int *outlen);

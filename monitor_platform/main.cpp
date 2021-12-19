@@ -31,11 +31,10 @@ int main(int argc, char* argv[])
 		printf("WARNING: %s: load [%s] failed, will use default value.\n", __FUNCTION__, PATH_CONFIG_INI);
 		//return -1;	// will use default value
 	}
-	main_mngr.socket_handle = -1;
 	
 	start_mainwindow_task();
 
 	socket_client_mngr_init();
-	
+
 	return qtApp.exec();		// start qt application, message loop ...
 }

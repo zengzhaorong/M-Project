@@ -22,7 +22,7 @@
   *
   */
 
-#define MAX_PROTO_OBJ	3
+#define MAX_PROTO_OBJ	10
 struct proto_object protoObject[MAX_PROTO_OBJ];
 static uint8_t tmp_protoBuf[PROTO_PACK_MAX_LEN];
 
@@ -50,6 +50,27 @@ int proto_0x01_login(int handle, uint8_t *usr_name, uint8_t *password)
 	protoBuf = protoObject[handle].send_buf;
 	buf_size = protoObject[handle].buf_size;
 	proto_makeupPacket(0, 0x01, data_len, tmp_protoBuf, protoBuf, buf_size, &packLen);
+
+	protoObject[handle].send_func(protoObject[handle].arg, protoBuf, packLen);
+	
+	return 0;
+}
+
+int proto_0x02_logout(int handle)
+{
+	uint8_t *protoBuf = NULL;
+	int data_len = 0;
+	int buf_size = 0;
+	int packLen = 0;
+
+	if(handle < 0 || handle >=MAX_PROTO_OBJ)
+		return -1;
+	if(protoObject[handle].send_func == NULL)
+		return -1;
+
+	protoBuf = protoObject[handle].send_buf;
+	buf_size = protoObject[handle].buf_size;
+	proto_makeupPacket(0, 0x02, data_len, tmp_protoBuf, protoBuf, buf_size, &packLen);
 
 	protoObject[handle].send_func(protoObject[handle].arg, protoBuf, packLen);
 	
@@ -101,7 +122,7 @@ int proto_0x04_switch_monitor(int handle, uint8_t onoff)
 	return 0;
 }
 
-int proto_0x10_sendCaptureFrame(int handle, int format, void *frame, int len)
+int proto_0x10_sendCaptureFrame(int handle, int format, uint8_t *frame, int len)
 {
 	uint8_t *protoBuf = NULL;
 	int data_len = 0;
@@ -336,6 +357,7 @@ int proto_register(void *arg, send_func_t send_func, int buf_size)
 	{
 		if(protoObject[i].used == 0)
 		{
+			printf("find unused, i=%d\n", i);
 			protoObject[i].arg = arg;
 			protoObject[i].send_func = send_func;
 
@@ -346,6 +368,7 @@ int proto_register(void *arg, send_func_t send_func, int buf_size)
 			
 			protoObject[i].used = 1;
 			handle = i;
+			printf("find unused, handle=%d, used: %d\n", handle, protoObject[i].used);
 			break;
 		}
 	}
@@ -358,6 +381,7 @@ void proto_unregister(int handle)
 	protoObject[handle].used = 0;
 	protoObject[handle].send_func = NULL;
 	
+			printf("### find unused, handle=%d\n", handle);
 	if(protoObject[handle].send_buf != NULL)
 	{
 		free(protoObject[handle].send_buf);

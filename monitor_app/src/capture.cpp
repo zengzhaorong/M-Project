@@ -11,9 +11,18 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include "capture.h"
-#include "public.h"
 #include "config.h"
+#include "socket_server.h"
+
+/* C++ include C */
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "public.h"
 #include "protocol.h"
+#ifdef __cplusplus
+}
+#endif
 
 
 unsigned char *newframe_buf;
@@ -30,7 +39,7 @@ int capture_init(struct v4l2cap_info *capture)
 	struct v4l2_format format;
 	struct v4l2_requestbuffers reqbuf_param;
 	struct v4l2_buffer buffer[QUE_BUF_MAX_NUM];
-	int v4l2_fmt[2] = {V4L2_PIX_FMT_MJPEG, V4L2_PIX_FMT_JPEG};
+	uint32_t v4l2_fmt[2] = {V4L2_PIX_FMT_MJPEG, V4L2_PIX_FMT_JPEG};
 	int i, ret;
 
 	memset(capture, 0, sizeof(struct v4l2cap_info));
@@ -58,7 +67,7 @@ int capture_init(struct v4l2cap_info *capture)
 	}while(ret == 0);
 
 	/* try the capture format */
-	for(i=0; i<sizeof(v4l2_fmt)/sizeof(int); i++)
+	for(i=0; (uint32_t)i<sizeof(v4l2_fmt)/sizeof(int); i++)
 	{
 		/* configure video format */
 		memset(&format, 0, sizeof(struct v4l2_format));
@@ -105,7 +114,7 @@ int capture_init(struct v4l2cap_info *capture)
 			break;
 		}
 	}
-	if(i >= sizeof(v4l2_fmt)/sizeof(int))
+	if((uint32_t)i >= sizeof(v4l2_fmt)/sizeof(int))
 	{
 		printf("ERROR: Not support capture foramt !!!\n");
 		ret = -4;
@@ -203,11 +212,11 @@ void v4l2cap_stop(struct v4l2cap_info *capture)
 	ioctl(capture->fd, VIDIOC_STREAMOFF, &type);
 }
 
-int v4l2cap_update_newframe(unsigned char *data, int len)
+int v4l2cap_update_newframe(unsigned char *data, unsigned int len)
 {
-	int flush_len = 0;
+	uint32_t flush_len = 0;
 
-	if(len > FRAME_BUF_SIZE)
+	if(len > (uint32_t)FRAME_BUF_SIZE)
 		flush_len = FRAME_BUF_SIZE;
 	else
 		flush_len = len;
@@ -221,10 +230,10 @@ int v4l2cap_update_newframe(unsigned char *data, int len)
 	return 0;
 }
 
-int capture_get_newframe(unsigned char *data, int size, int *len)
+int capture_get_newframe(unsigned char *data, unsigned int size, unsigned int *len)
 {
 	struct v4l2cap_info *capture = &capture_info;
-	int tmpLen;
+	uint32_t tmpLen;
 
 	if(!capture->run)
 		return -1;
@@ -266,10 +275,12 @@ void *capture_thread(void *arg)
 	struct v4l2cap_info *capture = &capture_info;
 	struct v4l2_buffer v4l2buf;
 	static unsigned int index = 0;
-	void *frame_buf = NULL;
-	int frame_size;
-	int frame_len;
-	int ret;
+	uint8_t *frame_buf = NULL;
+	uint32_t frame_size;
+	uint32_t frame_len;
+	int sock_list[MAX_CLIENT_NUM];
+	int sock_num;
+	int ret, i;
 
 	(void)frame_len;
 
@@ -285,7 +296,7 @@ void *capture_thread(void *arg)
 	capture->run = 1;
 
 	frame_size = FRAME_BUF_SIZE;
-	frame_buf = malloc(frame_size);
+	frame_buf = (uint8_t *)malloc(frame_size);
 	if(frame_buf == NULL)
 	{
 		printf("ERROR: %s: malloc for frame_buf failed!\n", __FUNCTION__);
@@ -322,7 +333,11 @@ void *capture_thread(void *arg)
 		ret = capture_get_newframe(frame_buf, frame_size, &frame_len);
 		if(ret == 0)
 		{
-			proto_0x10_sendCaptureFrame(main_mngr.socket_handle, 0, frame_buf, frame_len);
+			socket_get_handle_list(sock_list, sizeof(sock_list)/sizeof(sock_list[0]), &sock_num);
+			for(i=0; i<sock_num; i++)
+			{
+				proto_0x10_sendCaptureFrame(sock_list[i], 0, frame_buf, frame_len);
+			}
 		}
 	}
 	capture->run = 0;
