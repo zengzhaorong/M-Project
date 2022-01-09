@@ -372,7 +372,6 @@ void *socket_client_thread(void *arg)
 				printf("%s: Client[handle: %d] logout.\n", __FUNCTION__, client->protoHandle);
 				proto_0x02_logout(client->protoHandle);
 				client->state = STATE_CLOSE;
-				proto_unregister(client->protoHandle);
 				break;
 
 			default:
