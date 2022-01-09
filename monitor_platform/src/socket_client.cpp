@@ -97,6 +97,7 @@ int client_init(struct clientInfo *client, char *srv_ip, int srv_port)
 	memset(client, 0, sizeof(struct clientInfo));
 
 	client->state = STATE_DISCONNECT;
+	client->protoHandle = -1;
 
 	client->fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if(client->fd < 0)
@@ -158,7 +159,7 @@ int client_sendData(void *arg, uint8_t *data, int len)
 	// lock
 	pthread_mutex_lock(&client->send_mutex);
 	do{
-		ret = send(client->fd, data +total, len -total, 0);
+		ret = send(client->fd, data +total, len -total, MSG_NOSIGNAL);
 		if(ret < 0)
 		{
 			if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
@@ -197,7 +198,7 @@ int client_recvData(struct clientInfo *client)
 	space = ringbuf_space(&client->recvRingBuf);
 
 	memset(tmpBuf, 0, PROTO_PACK_MAX_LEN);
-	len = recv(client->fd, tmpBuf, PROTO_PACK_MAX_LEN>space ? space:PROTO_PACK_MAX_LEN, 0);
+	len = recv(client->fd, tmpBuf, PROTO_PACK_MAX_LEN>space ? space:PROTO_PACK_MAX_LEN, MSG_NOSIGNAL);
 	if(len > 0)
 	{
 		ret = ringbuf_write(&client->recvRingBuf, tmpBuf, len);
@@ -390,7 +391,16 @@ void *socket_client_thread(void *arg)
 		
 	}
 
+	if(client->protoHandle >= 0)
+		proto_unregister(client->protoHandle);
+
 	client_deinit(client);
+	mainwin_video_disconnect(pthread_self());
+	client_mngr_reset_client(client);
+	free(client);
+
+	printf("%s: exit --\n\n", __FUNCTION__);
+	return NULL;
 
 ERR_1:
 	free(client);
@@ -398,7 +408,6 @@ ERR_1:
 ERR_0:
 	mainwin_video_disconnect(pthread_self());
 
-	printf("%s: exit --\n", __FUNCTION__);
 	return NULL;
 }
 
@@ -461,11 +470,29 @@ void client_mngr_set_client_exit(pthread_t tid)
 		if(client_mngr.client_tid[i] == tid)
 		{
 			client_mngr.client_tid[i] = (pthread_t)(-1);
+			printf("%s: set tid=%ld exit --\n", __FUNCTION__, tid);
 			break;
 		}
 	}
 
-	printf("%s: set tid=%ld exit --\n", __FUNCTION__, tid);
+}
+
+void client_mngr_reset_client(struct clientInfo *client)
+{
+	int i;
+
+	for(i=0; i<CLIENT_NUM_MAX; i++)
+	{
+		if(client_mngr.client[i] == client)
+		{
+			client_mngr.client_tid[i] = 0;
+			client_mngr.client[i] = NULL;
+			client_mngr.client_num --;
+			printf("%s: reset handle: %d\n", __FUNCTION__, i);
+			break;
+		}
+	}
+
 }
 
 void *socket_client_mngr_thread(void *arg)

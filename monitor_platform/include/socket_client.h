@@ -53,6 +53,7 @@ struct client_mngr_info
 pthread_t start_socket_client_task(char *svr_str);
 void client_mngr_join_client(pthread_t tid, struct clientInfo *client);
 void client_mngr_set_client_exit(pthread_t tid);
+void client_mngr_reset_client(struct clientInfo *client);
 int socket_client_mngr_init(void);
 
 

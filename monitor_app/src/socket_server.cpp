@@ -141,7 +141,7 @@ int server_sendData(void *arg, uint8_t *data, int len)
 	// lock
 	pthread_mutex_lock(&client->send_mutex);
 	do{
-		ret = send(client->fd, data +total, len -total, 0);
+		ret = send(client->fd, data +total, len -total, MSG_NOSIGNAL);
 		if(ret < 0)
 		{
 			if(errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN)
@@ -180,7 +180,7 @@ int server_recvData(struct clientInfo *client)
 	space = ringbuf_space(&client->recvRingBuf);
 
 	memset(tmpBuf, 0, PROTO_PACK_MAX_LEN);
-	len = recv(client->fd, tmpBuf, PROTO_PACK_MAX_LEN>space ? space:PROTO_PACK_MAX_LEN, 0);
+	len = recv(client->fd, tmpBuf, PROTO_PACK_MAX_LEN>space ? space:PROTO_PACK_MAX_LEN, MSG_NOSIGNAL);
 	if(len > 0)
 	{
 		ret = ringbuf_write(&client->recvRingBuf, tmpBuf, len);
