@@ -198,7 +198,7 @@ int client_recvData(struct clientInfo *client)
 	space = ringbuf_space(&client->recvRingBuf);
 
 	memset(tmpBuf, 0, PROTO_PACK_MAX_LEN);
-	len = recv(client->fd, tmpBuf, PROTO_PACK_MAX_LEN>space ? space:PROTO_PACK_MAX_LEN, MSG_NOSIGNAL);
+	len = recv(client->fd, tmpBuf, PROTO_PACK_MAX_LEN>space ? space:PROTO_PACK_MAX_LEN, 0);
 	if(len > 0)
 	{
 		ret = ringbuf_write(&client->recvRingBuf, tmpBuf, len);
